@@ -7,7 +7,7 @@ import {
   getAuth, signInWithPopup, GoogleAuthProvider, signOut, onAuthStateChanged
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 import {
-  getFirestore, doc, setDoc, getDoc, collection, getDocs, query, where, orderBy
+  getFirestore, doc, setDoc, getDoc, deleteDoc, collection, getDocs, query, where, orderBy
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 import firebaseConfig from "./firebase-config.js";
 
@@ -504,14 +504,25 @@ function renderHistorico(lista) {
         <div class="modal-body">
           ${rows || '<p style="color:var(--text-muted);text-align:center;padding:24px">Sem registros nesta auditoria.</p>'}
         </div>
-        <div class="modal-footer">
-          <button class="btn-primary-full" id="btn-editar-hist">✏️ Editar esta Auditoria</button>
+        <div class="modal-footer" style="display:flex; gap:10px;">
+          <button id="btn-excluir-hist" style="padding:14px;border-radius:var(--radius);background:white;color:var(--nconf);border:1.5px solid #FCA5A5;font-family:'Outfit', sans-serif;font-weight:600;font-size:1rem;cursor:pointer;flex:1;transition:all 0.2s;" onmouseover="this.style.background='var(--nconf-bg)'" onmouseout="this.style.background='white'">🗑️ Excluir</button>
+          <button class="btn-primary-full" id="btn-editar-hist" style="flex:2;">✏️ Editar Auditoria</button>
         </div>
       `;
 
       document.getElementById("modal-overlay").style.display = "flex";
       document.getElementById("modal-close").addEventListener("click", () => {
         document.getElementById("modal-overlay").style.display = "none";
+      });
+      document.getElementById("btn-excluir-hist").addEventListener("click", async () => {
+        if (confirm("Tem certeza que deseja excluir permanentemente esta auditoria? O Dashboard será atualizado.")) {
+          document.getElementById("btn-excluir-hist").textContent = "⏳...";
+          await deleteDoc(doc(db, "auditorias", id));
+          document.getElementById("modal-overlay").style.display = "none";
+          showMainLoading("Atualizando histórico...");
+          const h = await carregarHistorico();
+          renderHistorico(h);
+        }
       });
       document.getElementById("btn-editar-hist").addEventListener("click", async () => {
         if (dt) currentDate = dt;
