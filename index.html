@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#005F7A" />
+  <meta name="description" content="Checklist RT — Auditoria Mensal | Hospital do Coração de Natal" />
+  <link rel="manifest" href="manifest.json" />
+  <link rel="apple-touch-icon" href="icons/icon-192.png" />
+  <title>Checklist RT — HCN</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <!-- Mobile top bar (visível só em mobile via CSS) -->
+  <div class="mobile-topbar" id="mobile-topbar" style="display:none">
+    <button class="mobile-menu-btn" id="mobile-menu-btn">☰</button>
+    <span class="mobile-title">Checklist RT</span>
+    <span class="mobile-heart">♥</span>
+  </div>
+
+  <!-- Overlay para fechar sidebar no mobile -->
+  <div class="sidebar-overlay" id="sidebar-overlay"></div>
+
+  <div id="app">
+    <div class="loading-screen">
+      <div class="loading-heart">♥</div>
+      <p style="color:var(--text-muted);font-size:0.9rem">Iniciando...</p>
+    </div>
+  </div>
+
+  <script type="module" src="app.js"></script>
+  <script>
+    // Mobile sidebar toggle
+    document.getElementById('mobile-menu-btn')?.addEventListener('click', () => {
+      const sb = document.querySelector('.sidebar');
+      const ov = document.getElementById('sidebar-overlay');
+      if (sb) sb.classList.toggle('open');
+      if (ov) ov.classList.toggle('visible');
+    });
+    document.getElementById('sidebar-overlay')?.addEventListener('click', () => {
+      document.querySelector('.sidebar')?.classList.remove('open');
+      document.getElementById('sidebar-overlay')?.classList.remove('visible');
+    });
+
+    // Mostrar mobile topbar em telas pequenas
+    function checkMobile() {
+      const tb = document.getElementById('mobile-topbar');
+      if (tb) tb.style.display = window.innerWidth <= 768 ? 'flex' : 'none';
+    }
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+  </script>
+</body>
+</html>
