@@ -1,60 +1,63 @@
 // ============================================================
 //  app.js — Checklist RT | Hospital do Coração de Natal
+//  v2.0 — Filtro por dia, histórico, layout responsivo PC
 // ============================================================
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
 import {
   getAuth, signInWithPopup, GoogleAuthProvider, signOut, onAuthStateChanged
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 import {
-  getFirestore, doc, setDoc, getDoc, collection, getDocs, query, where
+  getFirestore, doc, setDoc, getDoc, collection, getDocs, query, where, orderBy
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 import firebaseConfig from "./firebase-config.js";
 
 // ── Firebase Init ──────────────────────────────────────────
-const app   = initializeApp(firebaseConfig);
-const auth  = getAuth(app);
-const db    = getFirestore(app);
+const app      = initializeApp(firebaseConfig);
+const auth     = getAuth(app);
+const db       = getFirestore(app);
 const provider = new GoogleAuthProvider();
 
-// ── Constantes de Domínio ──────────────────────────────────
-const UTIs = ["UTI 1/A", "UTI 1/B", "UTI 2/A", "UTI 2/B", "UTI 3/A"];
+// ── Constantes ─────────────────────────────────────────────
+const UTIs = ["UTI 1/A", "UTI 1/B", "UTI 2/A", "UTI 2/B", "UTI 3/A", "UTI 3/B"];
 
-// Dias padrão (segunda = 1 ... sexta = 5, 0 = todos os dias)
-const DIAS_LABEL = { 1: "2ª", 2: "3ª", 3: "4ª", 4: "5ª", 5: "6ª" };
+const DIAS_NOME  = ["Domingo","Segunda","Terça","Quarta","Quinta","Sexta","Sábado"];
+const DIAS_ABREV = ["Dom","Seg","Ter","Qua","Qui","Sex","Sáb"];
+const MESES_NOME = ["Janeiro","Fevereiro","Março","Abril","Maio","Junho",
+                    "Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
 
+// dow: 1=Seg 2=Ter 3=Qua 4=Qui 5=Sex
 const INDICADORES_PADRAO = [
-  { id: "cme",          label: "Limpeza e Armazenamento CME",                               dias: [2, 4], freq: "2x/sem" },
-  { id: "laringo",      label: "Limpeza e Desinfecção de Laringoscópio",                    dias: [4],    freq: "1x/sem" },
-  { id: "caixa_urg",   label: "Caixa de Urgência e Caixa de Transporte",                   dias: [1, 5], freq: "2x/sem" },
-  { id: "carro_urg",   label: "Carro de Urgência",                                          dias: [1, 5], freq: "2x/sem" },
-  { id: "desfib",      label: "Desfibrilador",                                              dias: [1, 5], freq: "2x/sem" },
-  { id: "umidade",     label: "Umidade do Ar / Geladeira da Unidade e da Copa",             dias: [2, 4], freq: "2x/sem" },
-  { id: "mat_mh",      label: "Limpeza e Desinfecção de Materiais Médico-Hospitalares",     dias: [2, 4], freq: "2x/sem" },
-  { id: "pertences",   label: "Pertences de Pacientes (Sacos Transp.) e Almotolias",        dias: [2, 4], freq: "2x/sem" },
-  { id: "huddle",      label: "HUDDLE (Reunião de Alinhamento)",                            dias: [3],    freq: "1x/sem" },
-  { id: "visita_multi",label: "Visita Multiprofissional",                                   dias: [1, 5], freq: "2x/sem" },
-  { id: "infra",       label: "Infraestrutura do Setor",                                    dias: [1, 4], freq: "2x/sem" },
-  { id: "quadro_seg",  label: "Quadro de Segurança do Paciente",                            dias: [1, 4], freq: "2x/sem" },
-  { id: "termos",      label: "Termos",                                                     dias: [1, 4], freq: "2x/sem" },
-  { id: "tev",         label: "Protocolo de TEV (Tromboembolismo Venoso)",                  dias: [1, 4], freq: "2x/sem" },
+  { id:"cme",         label:"Limpeza e Armazenamento CME",                             dias:[2,4], freq:"2x/sem" },
+  { id:"laringo",     label:"Limpeza e Desinfecção de Laringoscópio",                  dias:[4],   freq:"1x/sem" },
+  { id:"caixa_urg",  label:"Caixa de Urgência e Caixa de Transporte",                 dias:[1,5], freq:"2x/sem" },
+  { id:"carro_urg",  label:"Carro de Urgência",                                        dias:[1,5], freq:"2x/sem" },
+  { id:"desfib",     label:"Desfibrilador",                                            dias:[1,5], freq:"2x/sem" },
+  { id:"umidade",    label:"Umidade do Ar / Geladeira da Unidade e da Copa",           dias:[2,4], freq:"2x/sem" },
+  { id:"mat_mh",     label:"Limpeza e Desinfecção de Materiais Médico-Hospitalares",   dias:[2,4], freq:"2x/sem" },
+  { id:"pertences",  label:"Pertences de Pacientes (Sacos Transp.) e Almotolias",      dias:[2,4], freq:"2x/sem" },
+  { id:"huddle",     label:"HUDDLE (Reunião de Alinhamento)",                          dias:[3],   freq:"1x/sem" },
+  { id:"visita",     label:"Visita Multiprofissional",                                 dias:[1,5], freq:"2x/sem" },
+  { id:"infra",      label:"Infraestrutura do Setor",                                  dias:[1,4], freq:"2x/sem" },
+  { id:"quadro_seg", label:"Quadro de Segurança do Paciente",                          dias:[1,4], freq:"2x/sem" },
+  { id:"termos",     label:"Termos",                                                   dias:[1,4], freq:"2x/sem" },
+  { id:"tev",        label:"Protocolo de TEV (Tromboembolismo Venoso)",                dias:[1,4], freq:"2x/sem" },
 ];
 
-// UTI 2/B tem dias próprios
 const INDICADORES_UTI2B = [
-  { id: "cme",          label: "Limpeza e Armazenamento CME",                               dias: [1, 4], freq: "2x/sem" },
-  { id: "laringo",      label: "Limpeza e Desinfecção de Laringoscópio",                    dias: [3],    freq: "1x/sem" },
-  { id: "caixa_urg",   label: "Caixa de Urgência e Caixa de Transporte",                   dias: [1, 5], freq: "2x/sem" },
-  { id: "carro_urg",   label: "Carro de Urgência",                                          dias: [1, 5], freq: "2x/sem" },
-  { id: "desfib",      label: "Desfibrilador",                                              dias: [1, 5], freq: "2x/sem" },
-  { id: "umidade",     label: "Umidade do Ar / Geladeira da Unidade e da Copa",             dias: [1, 5], freq: "2x/sem" },
-  { id: "mat_mh",      label: "Limpeza e Desinfecção de Materiais Médico-Hospitalares",     dias: [2, 4], freq: "2x/sem" },
-  { id: "pertences",   label: "Pertences de Pacientes (Sacos Transp.) e Almotolias",        dias: [2, 4], freq: "2x/sem" },
-  { id: "huddle",      label: "HUDDLE (Reunião de Alinhamento)",                            dias: [3],    freq: "1x/sem" },
-  { id: "visita_multi",label: "Visita Multiprofissional",                                   dias: [1, 5], freq: "2x/sem" },
-  { id: "infra",       label: "Infraestrutura do Setor",                                    dias: [1, 4], freq: "2x/sem" },
-  { id: "quadro_seg",  label: "Quadro de Segurança do Paciente",                            dias: [1, 4], freq: "2x/sem" },
-  { id: "termos",      label: "Termos",                                                     dias: [1, 4], freq: "2x/sem" },
-  { id: "tev",         label: "Protocolo de TEV (Tromboembolismo Venoso)",                  dias: [1, 4], freq: "2x/sem" },
+  { id:"cme",         label:"Limpeza e Armazenamento CME",                             dias:[1,4], freq:"2x/sem" },
+  { id:"laringo",     label:"Limpeza e Desinfecção de Laringoscópio",                  dias:[3],   freq:"1x/sem" },
+  { id:"caixa_urg",  label:"Caixa de Urgência e Caixa de Transporte",                 dias:[1,5], freq:"2x/sem" },
+  { id:"carro_urg",  label:"Carro de Urgência",                                        dias:[1,5], freq:"2x/sem" },
+  { id:"desfib",     label:"Desfibrilador",                                            dias:[1,5], freq:"2x/sem" },
+  { id:"umidade",    label:"Umidade do Ar / Geladeira da Unidade e da Copa",           dias:[1,5], freq:"2x/sem" },
+  { id:"mat_mh",     label:"Limpeza e Desinfecção de Materiais Médico-Hospitalares",   dias:[2,4], freq:"2x/sem" },
+  { id:"pertences",  label:"Pertences de Pacientes (Sacos Transp.) e Almotolias",      dias:[2,4], freq:"2x/sem" },
+  { id:"huddle",     label:"HUDDLE (Reunião de Alinhamento)",                          dias:[3],   freq:"1x/sem" },
+  { id:"visita",     label:"Visita Multiprofissional",                                 dias:[1,5], freq:"2x/sem" },
+  { id:"infra",      label:"Infraestrutura do Setor",                                  dias:[1,4], freq:"2x/sem" },
+  { id:"quadro_seg", label:"Quadro de Segurança do Paciente",                          dias:[1,4], freq:"2x/sem" },
+  { id:"termos",     label:"Termos",                                                   dias:[1,4], freq:"2x/sem" },
+  { id:"tev",        label:"Protocolo de TEV (Tromboembolismo Venoso)",                dias:[1,4], freq:"2x/sem" },
 ];
 
 function getIndicadores(uti) {
@@ -62,72 +65,126 @@ function getIndicadores(uti) {
 }
 
 // ── Estado Global ──────────────────────────────────────────
-let currentUser = null;
-let currentMes  = "";   // "2025-05"
-let currentUTI  = "";
-let dadosChecklist = {}; // { "semana1_cme_2": "C", ... }
+let currentUser    = null;
+let currentDate    = new Date();   // Data selecionada
+let currentUTI     = "";
+let dadosChecklist = {};
 
 // ── Helpers ────────────────────────────────────────────────
-function mesLabel(mesStr) {
-  if (!mesStr) return "";
-  const [ano, m] = mesStr.split("-");
-  const nomes = ["Janeiro","Fevereiro","Março","Abril","Maio","Junho",
-                 "Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
-  return `${nomes[parseInt(m)-1]} ${ano}`;
+function dateToMes(d)  { return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}`; }
+function dateToKey(d)  { return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`; }
+function mesLabel(s)   { const [a,m]=s.split("-"); return `${MESES_NOME[+m-1]} ${a}`; }
+function dateLabel(d)  { return `${DIAS_NOME[d.getDay()]}, ${d.getDate()} de ${MESES_NOME[d.getMonth()]} de ${d.getFullYear()}`; }
+function chaveDoc(dateKey, uti) { return `${dateKey}_${uti.replace(/\//g,"_").replace(/ /g,"_")}`; }
+
+// Número da semana no mês (0-indexed)
+function semanaDoMes(d) {
+  const primeiro = new Date(d.getFullYear(), d.getMonth(), 1).getDay();
+  return Math.floor((d.getDate() + primeiro - 1) / 7);
 }
 
-function chaveDoc(mes, uti) {
-  return `${mes}_${uti.replace(/\//g,"_").replace(/ /g,"_")}`;
-}
-
-// Gera as semanas (Mon–Fri) do mês
-function gerarSemanas(mesStr) {
-  const [ano, mes] = mesStr.split("-").map(Number);
-  const semanas = [];
-  let semana = [];
-  const ultimo = new Date(ano, mes, 0).getDate();
-  for (let d = 1; d <= ultimo; d++) {
-    const dt = new Date(ano, mes - 1, d);
-    const dow = dt.getDay(); // 0=Dom ... 6=Sab
-    if (dow >= 1 && dow <= 5) {
-      semana.push({ dia: d, dow });
-      if (dow === 5 || d === ultimo) {
-        semanas.push([...semana]);
-        semana = [];
-      }
-    } else if (dow === 6 && semana.length > 0) {
-      semanas.push([...semana]);
-      semana = [];
-    }
-  }
-  return semanas.slice(0, 5);
-}
+// chave da célula no Firestore: "dia_<indicadorId>"
+function itemKey(indId) { return `dia_${indId}`; }
 
 // ── Firestore ──────────────────────────────────────────────
 async function salvarDados() {
-  if (!currentUser || !currentMes || !currentUTI) return;
-  const chave = chaveDoc(currentMes, currentUTI);
+  if (!currentUser || !currentUTI) return;
+  const dateKey = dateToKey(currentDate);
+  const chave   = chaveDoc(dateKey, currentUTI);
   await setDoc(doc(db, "auditorias", chave), {
-    uid: currentUser.uid,
-    mes: currentMes,
-    uti: currentUTI,
-    dados: dadosChecklist,
+    uid:       currentUser.uid,
+    mes:       dateToMes(currentDate),
+    data:      dateKey,
+    diaSemana: currentDate.getDay(),
+    uti:       currentUTI,
+    dados:     dadosChecklist,
     updatedAt: new Date().toISOString()
   });
 }
 
-async function carregarDados(mes, uti) {
-  const chave = chaveDoc(mes, uti);
-  const snap = await getDoc(doc(db, "auditorias", chave));
+async function carregarDados() {
+  const dateKey = dateToKey(currentDate);
+  const chave   = chaveDoc(dateKey, currentUTI);
+  const snap    = await getDoc(doc(db, "auditorias", chave));
   dadosChecklist = snap.exists() ? (snap.data().dados || {}) : {};
 }
 
-async function carregarTodosMes(mes) {
-  const q = query(collection(db, "auditorias"), where("mes", "==", mes));
+async function carregarHistorico(limite = 30) {
+  const q = query(
+    collection(db, "auditorias"),
+    where("uid", "==", currentUser.uid)
+  );
   const snaps = await getDocs(q);
-  const resultado = {};
-  snaps.forEach(s => { resultado[s.data().uti] = s.data().dados || {}; });
-  return resultado;
+  const lista = [];
+  snaps.forEach(s => lista.push({ id: s.id, ...s.data() }));
+  lista.sort((a,b) => (b.data||"").localeCompare(a.data||""));
+  return lista.slice(0, limite);
+}
+
+async function carregarTodosMes(mes) {
+  const q = query(collection(db, "auditorias"),
+    where("uid", "==", currentUser.uid),
+    where("mes", "==", mes));
+  const snaps = await getDocs(q);
+  const res = {};
+  snaps.forEach(s => {
+    const d = s.data();
+    if (!res[d.uti]) res[d.uti] = {};
+    Object.assign(res[d.uti], d.dados || {});
+  });
+  return res;
+}
+
+// ── Layout PC: Sidebar ─────────────────────────────────────
+function renderShell(activeNav) {
+  return `
+    <div class="shell">
+      <aside class="sidebar">
+        <div class="sidebar-logo">
+          <div class="sidebar-heart">♥</div>
+          <div>
+            <div class="sidebar-hosp">Hospital do Coração</div>
+            <div class="sidebar-sub">Checklist RT</div>
+          </div>
+        </div>
+        <nav class="sidebar-nav">
+          <button class="nav-item ${activeNav==="home"?"active":""}" onclick="window._nav('home')">
+            <span class="nav-icon">📋</span><span class="nav-label">Auditoria</span>
+          </button>
+          <button class="nav-item ${activeNav==="historico"?"active":""}" onclick="window._nav('historico')">
+            <span class="nav-icon">🗂</span><span class="nav-label">Histórico</span>
+          </button>
+          <button class="nav-item ${activeNav==="dashboard"?"active":""}" onclick="window._nav('dashboard')">
+            <span class="nav-icon">📊</span><span class="nav-label">Dashboard</span>
+          </button>
+        </nav>
+        <div class="sidebar-footer">
+          <div class="sidebar-user">
+            <img src="${currentUser.photoURL||""}" class="user-avatar" onerror="this.style.display='none'" />
+            <div class="sidebar-user-info">
+              <span class="sidebar-user-name">${currentUser.displayName?.split(" ")[0]}</span>
+              <span class="sidebar-user-role">Resp. Técnico</span>
+            </div>
+          </div>
+          <button class="btn-logout" onclick="window._logout()">⏻ Sair</button>
+        </div>
+      </aside>
+      <main class="main-content" id="main-content">
+      </main>
+    </div>
+  `;
+}
+
+window._nav = async (page) => {
+  if (page === "home")      renderHome();
+  if (page === "historico") { showMainLoading("Carregando histórico..."); const h = await carregarHistorico(); renderHistorico(h); }
+  if (page === "dashboard") { showMainLoading("Calculando indicadores..."); renderDashboardPage(); }
+};
+window._logout = () => signOut(auth);
+
+function showMainLoading(msg="Carregando...") {
+  const el = document.getElementById("main-content");
+  if (el) el.innerHTML = `<div class="main-loading"><div class="loading-heart">♥</div><p>${msg}</p></div>`;
 }
 
 // ── Render: Login ──────────────────────────────────────────
@@ -155,80 +212,93 @@ function renderLogin() {
       </div>
     </div>
   `;
-  document.getElementById("btn-login").addEventListener("click", () => {
-    signInWithPopup(auth, provider).catch(e => alert("Erro no login: " + e.message));
-  });
+  document.getElementById("btn-login").addEventListener("click", () =>
+    signInWithPopup(auth, provider).catch(e => alert("Erro no login: " + e.message))
+  );
 }
 
-// ── Render: Home (seletor mês + UTI) ──────────────────────
+// ── Render: Home ───────────────────────────────────────────
 function renderHome() {
-  const hoje = new Date();
-  const mesAtual = `${hoje.getFullYear()}-${String(hoje.getMonth()+1).padStart(2,"0")}`;
+  document.getElementById("app").innerHTML = renderShell("home");
 
-  // Gerar opções de meses (6 meses anteriores + atual)
-  const meses = [];
-  for (let i = 5; i >= 0; i--) {
-    const d = new Date(hoje.getFullYear(), hoje.getMonth() - i, 1);
-    const v = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}`;
-    meses.push({ value: v, label: mesLabel(v) });
+  const hoje      = new Date();
+  const selDate   = currentDate;
+  const dow       = selDate.getDay();
+  const isWeekend = dow === 0 || dow === 6;
+
+  // Gerar seletor de data (últimos 14 dias + próximos 2)
+  const opcoesDatas = [];
+  for (let i = -14; i <= 2; i++) {
+    const d = new Date(hoje);
+    d.setDate(hoje.getDate() + i);
+    const dow2 = d.getDay();
+    if (dow2 >= 1 && dow2 <= 5) opcoesDatas.push(d);
   }
 
-  document.getElementById("app").innerHTML = `
-    <div class="home-screen">
-      <header class="top-bar">
-        <div class="top-bar-left">
-          <div class="logo-sm">♥</div>
-          <span class="top-title">Auditoria RT</span>
-        </div>
-        <div class="top-bar-right">
-          <span class="user-name">${currentUser.displayName?.split(" ")[0]}</span>
-          <button class="btn-icon" id="btn-logout" title="Sair">⏻</button>
-        </div>
-      </header>
+  document.getElementById("main-content").innerHTML = `
+    <div class="home-page">
+      <div class="page-header">
+        <h1 class="page-title">Nova Auditoria</h1>
+        <p class="page-subtitle">Selecione a data e a unidade para iniciar</p>
+      </div>
 
-      <div class="home-content">
-        <div class="home-hero">
-          <h1 class="home-title">Checklist Mensal</h1>
-          <p class="home-subtitle">Selecione o mês e a UTI para iniciar a auditoria</p>
-        </div>
-
+      <div class="form-card">
         <div class="form-group">
-          <label class="form-label">Competência</label>
-          <select class="form-select" id="sel-mes">
-            ${meses.map(m => `<option value="${m.value}"${m.value===mesAtual?" selected":""}>${m.label}</option>`).join("")}
+          <label class="form-label">📅 Data da Auditoria</label>
+          <select class="form-select" id="sel-data">
+            ${opcoesDatas.map(d => {
+              const v = dateToKey(d);
+              const isHoje = dateToKey(d) === dateToKey(hoje);
+              const label = isHoje
+                ? `Hoje — ${DIAS_NOME[d.getDay()]}, ${d.getDate()}/${d.getMonth()+1}`
+                : `${DIAS_NOME[d.getDay()]}, ${d.getDate()}/${String(d.getMonth()+1).padStart(2,"0")}/${d.getFullYear()}`;
+              return `<option value="${v}" ${dateToKey(d)===dateToKey(selDate)?"selected":""}>${label}</option>`;
+            }).join("")}
           </select>
         </div>
 
-        <div class="form-group">
-          <label class="form-label">Unidade</label>
+        ${isWeekend ? `
+          <div class="alert-weekend">
+            ⚠️ Fim de semana selecionado — não há itens de auditoria programados para este dia.
+          </div>
+        ` : `
+          <div class="dia-badge">
+            <span class="dia-badge-icon">📋</span>
+            <span>${DIAS_NOME[dow]}-feira · ${getIndicadores("UTI 1/A").filter(i=>i.dias.includes(dow)).length} indicadores programados</span>
+          </div>
+        `}
+      </div>
+
+      ${!isWeekend ? `
+        <div class="form-card">
+          <label class="form-label">🏥 Selecione a Unidade</label>
           <div class="uti-grid">
-            ${UTIs.map(u => `
-              <button class="uti-btn" data-uti="${u}">
-                <span class="uti-code">${u}</span>
-              </button>
-            `).join("")}
+            ${UTIs.map(u => {
+              const inds = getIndicadores(u).filter(i => i.dias.includes(dow));
+              return `
+                <button class="uti-btn" data-uti="${u}">
+                  <span class="uti-code">${u}</span>
+                  <span class="uti-count">${inds.length} itens</span>
+                </button>
+              `;
+            }).join("")}
           </div>
         </div>
-
-        <div class="home-actions">
-          <button class="btn-primary" id="btn-dashboard">📊 Ver Dashboard</button>
-        </div>
-      </div>
+      ` : ""}
     </div>
   `;
 
-  document.getElementById("btn-logout").addEventListener("click", () => signOut(auth));
-  document.getElementById("btn-dashboard").addEventListener("click", () => {
-    currentMes = document.getElementById("sel-mes").value;
-    renderDashboard();
+  document.getElementById("sel-data").addEventListener("change", e => {
+    const [ano, mes, dia] = e.target.value.split("-").map(Number);
+    currentDate = new Date(ano, mes - 1, dia);
+    renderHome();
   });
 
   document.querySelectorAll(".uti-btn").forEach(btn => {
     btn.addEventListener("click", async () => {
-      currentMes = document.getElementById("sel-mes").value;
       currentUTI = btn.dataset.uti;
-      showLoading("Carregando checklist...");
-      await carregarDados(currentMes, currentUTI);
+      showMainLoading("Carregando checklist...");
+      await carregarDados();
       renderChecklist();
     });
   });
@@ -236,217 +306,380 @@ function renderHome() {
 
 // ── Render: Checklist ──────────────────────────────────────
 function renderChecklist() {
-  const semanas  = gerarSemanas(currentMes);
-  const indicadores = getIndicadores(currentUTI);
+  document.getElementById("app").innerHTML = renderShell("home");
 
-  document.getElementById("app").innerHTML = `
-    <div class="checklist-screen">
-      <header class="top-bar">
-        <button class="btn-icon" id="btn-back">←</button>
-        <div class="top-center">
-          <span class="top-title">${currentUTI}</span>
-          <span class="top-sub">${mesLabel(currentMes)}</span>
+  const dow        = currentDate.getDay();
+  const indicadores = getIndicadores(currentUTI).filter(i => i.dias.includes(dow));
+  const dateKey    = dateToKey(currentDate);
+
+  document.getElementById("main-content").innerHTML = `
+    <div class="checklist-page">
+      <div class="page-header checklist-header">
+        <div>
+          <button class="btn-back" id="btn-back">← Voltar</button>
+          <h1 class="page-title">${currentUTI}</h1>
+          <p class="page-subtitle">${dateLabel(currentDate)}</p>
         </div>
-        <button class="btn-text" id="btn-salvar">💾 Salvar</button>
-      </header>
+        <button class="btn-save" id="btn-salvar">💾 Salvar</button>
+      </div>
 
-      <div class="checklist-content">
-        ${semanas.map((semDias, si) => `
-          <div class="semana-bloco">
-            <div class="semana-header">
-              <span class="semana-titulo">Semana ${si+1}</span>
-              <span class="semana-periodo">${semDias[0].dia}–${semDias[semDias.length-1].dia}/${currentMes.split("-")[1]}</span>
+      <div class="progress-header">
+        <span class="progress-label" id="prog-label">0 de ${indicadores.length} preenchidos</span>
+        <div class="progress-bar-wrap">
+          <div class="progress-bar-fill" id="prog-bar" style="width:0%"></div>
+        </div>
+      </div>
+
+      <div class="checklist-list" id="checklist-list">
+        ${indicadores.map(ind => {
+          const key = itemKey(ind.id);
+          const val = dadosChecklist[key] || "";
+          return `
+            <div class="check-item" data-key="${key}">
+              <div class="check-item-info">
+                <span class="check-item-label">${ind.label}</span>
+                <span class="check-item-freq">${ind.freq}</span>
+              </div>
+              <div class="check-toggle">
+                <button class="tog-btn tog-c ${val==="C"?"active":""}" data-key="${key}" data-val="C">
+                  <span class="tog-icon">✓</span> Conforme
+                </button>
+                <button class="tog-btn tog-nc ${val==="NC"?"active":""}" data-key="${key}" data-val="NC">
+                  <span class="tog-icon">✗</span> Não Conforme
+                </button>
+              </div>
             </div>
+          `;
+        }).join("")}
+      </div>
 
-            ${indicadores.map(ind => {
-              // Filtrar apenas dias desta semana que são dias de auditoria para este indicador
-              const diasAudit = semDias.filter(d => ind.dias.includes(d.dow));
-              if (diasAudit.length === 0) return `
-                <div class="ind-row ind-row--skip">
-                  <span class="ind-label">${ind.label}</span>
-                  <span class="ind-freq na-badge">N/A esta semana</span>
-                </div>
-              `;
-              return `
-                <div class="ind-row">
-                  <div class="ind-info">
-                    <span class="ind-label">${ind.label}</span>
-                    <span class="ind-freq">${ind.freq}</span>
-                  </div>
-                  <div class="ind-dias">
-                    ${diasAudit.map(d => {
-                      const chave = `s${si+1}_${ind.id}_${d.dia}`;
-                      const val   = dadosChecklist[chave] || "";
-                      return `
-                        <div class="dia-col">
-                          <span class="dia-label">${DIAS_LABEL[d.dow]} ${d.dia}</span>
-                          <div class="toggle-group">
-                            <button class="tog tog-c${val==="C"?" active":""}" data-key="${chave}" data-val="C">C</button>
-                            <button class="tog tog-nc${val==="NC"?" active":""}" data-key="${chave}" data-val="NC">NC</button>
-                          </div>
-                        </div>
-                      `;
-                    }).join("")}
-                  </div>
-                </div>
-              `;
-            }).join("")}
-          </div>
-        `).join("")}
+      <div class="checklist-actions">
+        <button class="btn-primary-full" id="btn-salvar-bottom">💾 Salvar Auditoria</button>
       </div>
     </div>
   `;
 
+  atualizarProgresso(indicadores.length);
+
   document.getElementById("btn-back").addEventListener("click", renderHome);
 
-  document.getElementById("btn-salvar").addEventListener("click", async () => {
-    const btn = document.getElementById("btn-salvar");
-    btn.textContent = "⏳ Salvando...";
+  async function salvar(btn) {
     btn.disabled = true;
+    btn.textContent = "⏳ Salvando...";
     await salvarDados();
     btn.textContent = "✅ Salvo!";
-    setTimeout(() => { btn.textContent = "💾 Salvar"; btn.disabled = false; }, 2000);
-  });
+    setTimeout(() => { btn.disabled = false; btn.textContent = btn.id === "btn-salvar" ? "💾 Salvar" : "💾 Salvar Auditoria"; }, 2000);
+  }
 
-  document.querySelectorAll(".tog").forEach(btn => {
+  document.getElementById("btn-salvar").addEventListener("click", e => salvar(e.target));
+  document.getElementById("btn-salvar-bottom").addEventListener("click", e => salvar(e.target));
+
+  document.querySelectorAll(".tog-btn").forEach(btn => {
     btn.addEventListener("click", () => {
       const key = btn.dataset.key;
       const val = btn.dataset.val;
       const jaAtivo = btn.classList.contains("active");
-
-      // Toggle off se clicar no já ativo
-      const grupo = document.querySelectorAll(`.tog[data-key="${key}"]`);
-      grupo.forEach(b => b.classList.remove("active"));
+      document.querySelectorAll(`.tog-btn[data-key="${key}"]`).forEach(b => b.classList.remove("active"));
       if (!jaAtivo) {
         btn.classList.add("active");
         dadosChecklist[key] = val;
       } else {
         delete dadosChecklist[key];
       }
+      atualizarProgresso(indicadores.length);
     });
+  });
+}
+
+function atualizarProgresso(total) {
+  const preenchidos = Object.keys(dadosChecklist).length;
+  const pct = total > 0 ? Math.round((preenchidos / total) * 100) : 0;
+  const lbl = document.getElementById("prog-label");
+  const bar = document.getElementById("prog-bar");
+  if (lbl) lbl.textContent = `${preenchidos} de ${total} preenchidos`;
+  if (bar) bar.style.width = pct + "%";
+}
+
+// ── Render: Histórico ──────────────────────────────────────
+function renderHistorico(lista) {
+  document.getElementById("app").innerHTML = renderShell("historico");
+
+  if (lista.length === 0) {
+    document.getElementById("main-content").innerHTML = `
+      <div class="historico-page">
+        <div class="page-header"><h1 class="page-title">Histórico</h1></div>
+        <div class="empty-state">
+          <div class="empty-icon">🗂</div>
+          <p>Nenhuma auditoria registrada ainda.</p>
+        </div>
+      </div>
+    `;
+    return;
+  }
+
+  // Agrupar por data
+  const porData = {};
+  lista.forEach(item => {
+    const d = item.data || "???";
+    if (!porData[d]) porData[d] = [];
+    porData[d].push(item);
+  });
+
+  const html = Object.entries(porData).map(([data, items]) => {
+    const dt     = data !== "???" ? new Date(data + "T12:00:00") : null;
+    const titulo = dt ? dateLabel(dt) : data;
+    return `
+      <div class="hist-grupo">
+        <div class="hist-data-titulo">${titulo}</div>
+        ${items.map(item => {
+          const vals   = Object.values(item.dados || {});
+          const total  = vals.length;
+          const conf   = vals.filter(v=>v==="C").length;
+          const nconf  = vals.filter(v=>v==="NC").length;
+          const pct    = total > 0 ? Math.round((conf/total)*100) : null;
+          const status = pct === null ? "vazio" : pct >= 80 ? "ok" : pct >= 60 ? "warn" : "crit";
+          return `
+            <div class="hist-card" data-id="${item.id}" data-data="${item.data}" data-uti="${item.uti}">
+              <div class="hist-card-left">
+                <span class="hist-uti">${item.uti}</span>
+                <div class="hist-badges">
+                  ${total > 0 ? `<span class="badge-c">${conf} C</span><span class="badge-nc">${nconf} NC</span>` : '<span class="badge-vazio">Sem dados</span>'}
+                </div>
+              </div>
+              <div class="hist-card-right">
+                <span class="hist-pct hist-pct--${status}">${pct !== null ? pct+"%" : "—"}</span>
+                <button class="btn-preview" data-id="${item.id}" data-data="${item.data}" data-uti="${item.uti}">Ver ›</button>
+              </div>
+            </div>
+          `;
+        }).join("")}
+      </div>
+    `;
+  }).join("");
+
+  document.getElementById("main-content").innerHTML = `
+    <div class="historico-page">
+      <div class="page-header">
+        <h1 class="page-title">Histórico de Auditorias</h1>
+        <p class="page-subtitle">Últimas ${lista.length} auditorias registradas</p>
+      </div>
+      <div class="hist-lista">${html}</div>
+    </div>
+    <div class="modal-overlay" id="modal-overlay" style="display:none">
+      <div class="modal-box" id="modal-box"></div>
+    </div>
+  `;
+
+  document.querySelectorAll(".btn-preview").forEach(btn => {
+    btn.addEventListener("click", async () => {
+      const id  = btn.dataset.id;
+      const snap = await getDoc(doc(db, "auditorias", id));
+      if (!snap.exists()) return;
+      const d   = snap.data();
+      const dt  = d.data ? new Date(d.data + "T12:00:00") : null;
+      const dow = dt ? dt.getDay() : 0;
+      const inds = getIndicadores(d.uti);
+      const vals = d.dados || {};
+
+      const rows = inds.map(ind => {
+        const key = itemKey(ind.id);
+        const val = vals[key] || "";
+        if (!val) return "";
+        return `
+          <div class="preview-row ${val==="C"?"preview-c":"preview-nc"}">
+            <span class="preview-label">${ind.label}</span>
+            <span class="preview-val">${val}</span>
+          </div>
+        `;
+      }).filter(Boolean).join("");
+
+      document.getElementById("modal-box").innerHTML = `
+        <div class="modal-header">
+          <div>
+            <div class="modal-uti">${d.uti}</div>
+            <div class="modal-data">${dt ? dateLabel(dt) : d.data}</div>
+          </div>
+          <button class="modal-close" id="modal-close">✕</button>
+        </div>
+        <div class="modal-body">
+          ${rows || '<p style="color:var(--text-muted);text-align:center;padding:24px">Sem registros nesta auditoria.</p>'}
+        </div>
+        <div class="modal-footer">
+          <button class="btn-primary-full" id="btn-editar-hist">✏️ Editar esta Auditoria</button>
+        </div>
+      `;
+
+      document.getElementById("modal-overlay").style.display = "flex";
+      document.getElementById("modal-close").addEventListener("click", () => {
+        document.getElementById("modal-overlay").style.display = "none";
+      });
+      document.getElementById("btn-editar-hist").addEventListener("click", async () => {
+        if (dt) currentDate = dt;
+        currentUTI = d.uti;
+        document.getElementById("modal-overlay").style.display = "none";
+        showMainLoading("Carregando...");
+        await carregarDados();
+        renderChecklist();
+      });
+    });
+  });
+
+  document.getElementById("modal-overlay")?.addEventListener("click", e => {
+    if (e.target.id === "modal-overlay") e.target.style.display = "none";
   });
 }
 
 // ── Render: Dashboard ──────────────────────────────────────
-async function renderDashboard() {
-  showLoading("Calculando indicadores...");
-  const todos = await carregarTodosMes(currentMes);
+async function renderDashboardPage() {
+  document.getElementById("app").innerHTML = renderShell("dashboard");
 
-  // Calcular % conformidade por UTI
-  const stats = UTIs.map(uti => {
-    const dados = todos[uti] || {};
-    const vals  = Object.values(dados);
-    const total = vals.length;
-    const conf  = vals.filter(v => v === "C").length;
-    const nconf = vals.filter(v => v === "NC").length;
-    const pct   = total > 0 ? Math.round((conf / total) * 100) : null;
-    return { uti, conf, nconf, total, pct };
-  });
+  const hoje  = new Date();
+  const mesAtual = dateToMes(hoje);
 
-  // Calcular % conformidade por indicador (global)
-  const indStats = INDICADORES_PADRAO.map(ind => {
-    let c = 0, nc = 0;
-    UTIs.forEach(uti => {
-      const dados = todos[uti] || {};
-      Object.entries(dados).forEach(([k, v]) => {
-        if (k.includes(`_${ind.id}_`)) {
-          if (v === "C") c++;
-          else if (v === "NC") nc++;
-        }
-      });
-    });
-    const total = c + nc;
-    return { ...ind, c, nc, total, pct: total > 0 ? Math.round((c/total)*100) : null };
-  });
+  // Seletor de mês
+  const meses = [];
+  for (let i = 5; i >= 0; i--) {
+    const d = new Date(hoje.getFullYear(), hoje.getMonth() - i, 1);
+    const v = dateToMes(d);
+    meses.push({ value: v, label: mesLabel(v) });
+  }
 
-  document.getElementById("app").innerHTML = `
-    <div class="dash-screen">
-      <header class="top-bar">
-        <button class="btn-icon" id="btn-back">←</button>
-        <div class="top-center">
-          <span class="top-title">Dashboard</span>
-          <span class="top-sub">${mesLabel(currentMes)}</span>
+  document.getElementById("main-content").innerHTML = `
+    <div class="dashboard-page">
+      <div class="page-header dash-page-header">
+        <div>
+          <h1 class="page-title">Dashboard</h1>
+          <p class="page-subtitle">Indicadores de conformidade</p>
         </div>
-        <button class="btn-text" id="btn-export">📄 PDF</button>
-      </header>
-
-      <div class="dash-content" id="dash-print">
-        <div class="dash-section">
-          <h2 class="dash-section-title">Conformidade por UTI</h2>
-          <div class="uti-cards">
-            ${stats.map(s => `
-              <div class="uti-card ${s.pct === null ? "uti-card--vazio" : s.pct >= 80 ? "uti-card--ok" : s.pct >= 60 ? "uti-card--warn" : "uti-card--crit"}">
-                <div class="uti-card-name">${s.uti}</div>
-                <div class="uti-card-pct">${s.pct !== null ? s.pct+"%" : "—"}</div>
-                <div class="uti-card-detail">
-                  ${s.total > 0 ? `<span class="badge-c">${s.conf} C</span> <span class="badge-nc">${s.nconf} NC</span>` : "Sem dados"}
-                </div>
-                <div class="progress-bar">
-                  <div class="progress-fill" style="width:${s.pct||0}%"></div>
-                </div>
-              </div>
-            `).join("")}
-          </div>
-        </div>
-
-        <div class="dash-section">
-          <h2 class="dash-section-title">Conformidade por Indicador</h2>
-          <div class="ind-list-dash">
-            ${indStats.map(i => `
-              <div class="ind-dash-row">
-                <div class="ind-dash-label">${i.label}</div>
-                <div class="ind-dash-bar">
-                  <div class="ind-dash-fill ${i.pct===null?"empty":i.pct>=80?"ok":i.pct>=60?"warn":"crit"}"
-                       style="width:${i.pct||0}%"></div>
-                </div>
-                <div class="ind-dash-pct">${i.pct !== null ? i.pct+"%" : "—"}</div>
-              </div>
-            `).join("")}
-          </div>
-        </div>
-
-        <div class="dash-section">
-          <h2 class="dash-section-title">Legenda</h2>
-          <div class="legenda">
-            <span class="leg-item leg-ok">≥80% Conforme</span>
-            <span class="leg-item leg-warn">60–79% Atenção</span>
-            <span class="leg-item leg-crit">&lt;60% Crítico</span>
-          </div>
-        </div>
-
-        <div class="dash-footer">
-          <p>Hospital do Coração de Natal — Grupo Atena</p>
-          <p>Responsável Técnico | Gerado em ${new Date().toLocaleDateString("pt-BR")}</p>
+        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+          <select class="form-select form-select--sm" id="sel-mes-dash">
+            ${meses.map(m=>`<option value="${m.value}"${m.value===mesAtual?" selected":""}>${m.label}</option>`).join("")}
+          </select>
+          <button class="btn-pdf" id="btn-pdf">📄 PDF</button>
         </div>
       </div>
+      <div id="dash-body"><div class="main-loading"><div class="loading-heart">♥</div><p>Calculando...</p></div></div>
     </div>
   `;
 
-  document.getElementById("btn-back").addEventListener("click", renderHome);
-  document.getElementById("btn-export").addEventListener("click", imprimirPDF);
-}
+  async function carregarDash(mes) {
+    const todos = await carregarTodosMes(mes);
+    const stats = UTIs.map(uti => {
+      const dados = todos[uti] || {};
+      const vals  = Object.values(dados);
+      const conf  = vals.filter(v=>v==="C").length;
+      const nconf = vals.filter(v=>v==="NC").length;
+      const total = vals.length;
+      const pct   = total > 0 ? Math.round((conf/total)*100) : null;
+      return { uti, conf, nconf, total, pct };
+    });
+    const indStats = INDICADORES_PADRAO.map(ind => {
+      let c=0, nc=0;
+      UTIs.forEach(uti => {
+        const dados = todos[uti] || {};
+        const key = itemKey(ind.id);
+        Object.entries(dados).forEach(([k,v]) => {
+          if (k === key) { if (v==="C") c++; else if (v==="NC") nc++; }
+        });
+      });
+      const total = c+nc;
+      return { ...ind, c, nc, total, pct: total>0?Math.round((c/total)*100):null };
+    });
 
-function imprimirPDF() {
-  window.print();
+    const totalGlobal = stats.reduce((a,s)=>a+s.total,0);
+    const confGlobal  = stats.reduce((a,s)=>a+s.conf,0);
+    const pctGlobal   = totalGlobal > 0 ? Math.round((confGlobal/totalGlobal)*100) : null;
+
+    document.getElementById("dash-body").innerHTML = `
+      <div class="dash-kpi-row">
+        <div class="kpi-card">
+          <span class="kpi-label">Conformidade Global</span>
+          <span class="kpi-value ${pctGlobal!==null?(pctGlobal>=80?"kpi-ok":pctGlobal>=60?"kpi-warn":"kpi-crit"):""}">
+            ${pctGlobal !== null ? pctGlobal+"%" : "—"}
+          </span>
+        </div>
+        <div class="kpi-card">
+          <span class="kpi-label">Total Registros</span>
+          <span class="kpi-value">${totalGlobal}</span>
+        </div>
+        <div class="kpi-card">
+          <span class="kpi-label">Conformes</span>
+          <span class="kpi-value kpi-ok">${confGlobal}</span>
+        </div>
+        <div class="kpi-card">
+          <span class="kpi-label">Não Conformes</span>
+          <span class="kpi-value kpi-crit">${stats.reduce((a,s)=>a+s.nconf,0)}</span>
+        </div>
+      </div>
+
+      <div class="dash-grid">
+        <div class="dash-card">
+          <h2 class="dash-card-title">Por Unidade</h2>
+          ${stats.map(s => `
+            <div class="uti-stat-row">
+              <span class="uti-stat-name">${s.uti}</span>
+              <div class="uti-stat-bar">
+                <div class="uti-stat-fill ${s.pct===null?"":s.pct>=80?"ok":s.pct>=60?"warn":"crit"}"
+                     style="width:${s.pct||0}%"></div>
+              </div>
+              <span class="uti-stat-pct ${s.pct===null?"":s.pct>=80?"ok-txt":s.pct>=60?"warn-txt":"crit-txt"}">
+                ${s.pct!==null?s.pct+"%":"—"}
+              </span>
+              <div class="uti-stat-badges">
+                ${s.total>0?`<span class="badge-c">${s.conf}C</span><span class="badge-nc">${s.nconf}NC</span>`:"<span class='badge-vazio'>sem dados</span>"}
+              </div>
+            </div>
+          `).join("")}
+        </div>
+
+        <div class="dash-card">
+          <h2 class="dash-card-title">Por Indicador</h2>
+          ${indStats.map(i => `
+            <div class="ind-stat-row">
+              <span class="ind-stat-label">${i.label}</span>
+              <div class="ind-stat-bar">
+                <div class="ind-stat-fill ${i.pct===null?"":i.pct>=80?"ok":i.pct>=60?"warn":"crit"}"
+                     style="width:${i.pct||0}%"></div>
+              </div>
+              <span class="ind-stat-pct">${i.pct!==null?i.pct+"%":"—"}</span>
+            </div>
+          `).join("")}
+        </div>
+      </div>
+
+      <div class="legenda-row">
+        <span class="leg ok-txt">● ≥80% Conforme</span>
+        <span class="leg warn-txt">● 60–79% Atenção</span>
+        <span class="leg crit-txt">● &lt;60% Crítico</span>
+      </div>
+
+      <div class="dash-footer-txt">
+        Hospital do Coração de Natal — Grupo Atena &nbsp;|&nbsp;
+        Responsável Técnico &nbsp;|&nbsp;
+        Gerado em ${new Date().toLocaleDateString("pt-BR")}
+      </div>
+    `;
+  }
+
+  await carregarDash(mesAtual);
+
+  document.getElementById("sel-mes-dash").addEventListener("change", e => carregarDash(e.target.value));
+  document.getElementById("btn-pdf").addEventListener("click", () => window.print());
 }
 
 // ── Loading ────────────────────────────────────────────────
-function showLoading(msg = "Carregando...") {
+function showLoading() {
   document.getElementById("app").innerHTML = `
     <div class="loading-screen">
-      <div class="loading-icon">♥</div>
-      <p class="loading-msg">${msg}</p>
+      <div class="loading-heart">♥</div>
+      <p>Iniciando...</p>
     </div>
   `;
 }
 
 // ── Auth State ─────────────────────────────────────────────
 onAuthStateChanged(auth, user => {
-  if (user) {
-    currentUser = user;
-    renderHome();
-  } else {
-    currentUser = null;
-    renderLogin();
-  }
+  currentUser = user;
+  if (user) renderHome();
+  else renderLogin();
 });
