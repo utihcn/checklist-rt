@@ -158,7 +158,7 @@ function showLoading(msg="Carregando...") {
   const mc = document.getElementById("main-content");
   if (mc) mc.innerHTML=`
     <div class="main-loading">
-      <div class="loading-heart">♥</div>
+      <img src="logo.png" class="loading-logo" alt="HCN" />
       <p>${msg}</p>
     </div>`;
 }
@@ -180,7 +180,7 @@ function renderShell(activePage) {
       <!-- Mobile top bar -->
       <div class="mobile-topbar" id="mobile-topbar">
         <button class="mobile-menu-btn" id="mob-menu-btn">☰</button>
-        <span class="mobile-title">♥ Checklist RT</span>
+        <img src="logo.png" class="mob-logo-img" alt="HCN" /><span class="mobile-title">Checklist RT</span>
         <span></span>
       </div>
 
@@ -190,7 +190,7 @@ function renderShell(activePage) {
       <!-- Sidebar -->
       <aside class="sidebar" id="sidebar">
         <div class="sidebar-logo">
-          <span class="sidebar-heart">♥</span>
+          <img src="logo.png" class="sidebar-logo-img" alt="HCN" />
           <div>
             <span class="sidebar-hosp">Hospital do Coração</span>
             <span class="sidebar-sub">Checklist RT</span>
@@ -263,7 +263,7 @@ function renderLogin() {
     <div class="login-screen">
       <div class="login-card">
         <div class="login-logo">
-          <div class="logo-icon">♥</div>
+          <img src="logo.png" class="login-logo-img" alt="Hospital do Coração" />
           <div class="login-title">
             <span class="login-hospital">Hospital do Coração</span>
             <span class="login-sub">Checklist RT — Auditoria Mensal</span>
