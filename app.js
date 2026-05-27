@@ -25,7 +25,7 @@ const ADMINS = [
 ];
 
 // ── Constantes ─────────────────────────────────────────────
-const UTIs = ["UTI 1/A","UTI 1/B","UTI 2/A","UTI 2/B","UTI 3/A"];
+const UTIs = ["UTI 1/A","UTI 1/B","UTI 2/A","UTI 2/B","UTI 3/A","UTI 3/B"];
 const DIAS_LABEL = {1:"Segunda",2:"Terça",3:"Quarta",4:"Quinta",5:"Sexta"};
 const MESES_NOME = ["Janeiro","Fevereiro","Março","Abril","Maio","Junho",
                     "Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
