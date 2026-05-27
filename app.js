@@ -47,22 +47,9 @@ const INDICADORES_PADRAO = [
   { id:"tev",         label:"Protocolo de TEV (Tromboembolismo Venoso)",              dias:[1,4], freq:"2x/sem" },
 ];
 
-const INDICADORES_UTI2B = [
-  { id:"cme",          label:"Limpeza e Armazenamento CME",                           dias:[1,4], freq:"2x/sem" },
-  { id:"laringo",      label:"Limpeza e Desinfecção de Laringoscópio",                dias:[3],   freq:"1x/sem" },
-  { id:"caixa_urg",   label:"Caixa de Urgência e Caixa de Transporte",               dias:[1,5], freq:"2x/sem" },
-  { id:"carro_urg",   label:"Carro de Urgência",                                      dias:[1,5], freq:"2x/sem" },
-  { id:"desfib",      label:"Desfibrilador",                                          dias:[1,5], freq:"2x/sem" },
-  { id:"umidade",     label:"Umidade do Ar / Geladeira da Unidade e da Copa",         dias:[1,5], freq:"2x/sem" },
-  { id:"mat_mh",      label:"Limpeza e Desinfecção de Materiais Médico-Hospitalares", dias:[2,4], freq:"2x/sem" },
-  { id:"pertences",   label:"Pertences de Pacientes (Sacos Transp.) e Almotolias",    dias:[2,4], freq:"2x/sem" },
-  { id:"huddle",      label:"HUDDLE (Reunião de Alinhamento)",                        dias:[3],   freq:"1x/sem" },
-  { id:"visita_multi",label:"Visita Multiprofissional",                               dias:[1,5], freq:"2x/sem" },
-  { id:"infra",       label:"Infraestrutura do Setor",                                dias:[1,4], freq:"2x/sem" },
-  { id:"quadro_seg",  label:"Quadro de Segurança do Paciente",                        dias:[1,4], freq:"2x/sem" },
-  { id:"termos",      label:"Termos",                                                 dias:[1,4], freq:"2x/sem" },
-  { id:"tev",         label:"Protocolo de TEV (Tromboembolismo Venoso)",              dias:[1,4], freq:"2x/sem" },
-];
+// UTI 2/B agora usa os MESMOS dias das demais UTIs.
+// (Cópia do padrão; ajuste o INDICADORES_PADRAO que reflete aqui automaticamente.)
+const INDICADORES_UTI2B = INDICADORES_PADRAO;
 
 function getIndicadores(uti) {
   return uti === "UTI 2/B" ? INDICADORES_UTI2B : INDICADORES_PADRAO;
